@@ -1,5 +1,13 @@
-import Phaser from 'phaser';
-import './style.css';
+// Use Phaser's browser build so GitHub Pages can serve the source directly.
+const Phaser = window.Phaser;
+if (!Phaser) {
+  document.getElementById('overlay').classList.add('visible');
+  document.getElementById('overlay-title').textContent = 'UNABLE TO LOAD GAME';
+  document.getElementById('overlay-kicker').textContent = 'PHASER LIBRARY NOT AVAILABLE';
+  document.getElementById('overlay-copy').textContent = 'Please check your internet connection or browser extensions and refresh this page.';
+  document.getElementById('overlay-button').hidden = true;
+  throw new Error('Phaser did not load from the CDN');
+}
 const points=[{x:1150,y:350,name:'GAS STATION'},{x:2450,y:1050,name:'REPAIR YARD'},{x:3540,y:1810,name:'EVACUATION POINT'}];
 const upgrades=[['turret','TRIGGER HAPPY','Fire 20% faster'],['damage','HEAVY ROUNDS','Increase bullet damage'],['engine','TURBO CHARGER','Faster driving'],['armor','WELDED ARMOR','More health and repairs'],['magnet','SCRAP MAGNET','Collect scrap from farther away'],['barrel','EXTRA BARREL','Fire additional bullets'],['bumper','SPIKED BUMPER','Do more ramming damage']];
 const rand=(a,b)=>a+Math.random()*(b-a);
