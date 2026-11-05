@@ -17,6 +17,8 @@ create(){
  this.g=this.add.graphics();this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT');
  this.x=190;this.y=190;this.a=0;this.speed=0;this.hp=100;this.maxHp=100;this.xp=0;this.xpGoal=8;this.level=1;this.kills=0;this.leg=0;
  this.maxSpeed=300;this.accel=450;this.shotTimer=0;this.shotDelay=.5;this.damage=2;this.barrels=1;this.pickup=65;this.ram=2;
+ this.visual={turret:0,damage:0,engine:0,armor:0,magnet:0,barrel:0,bumper:0};
+ this.turretAim=0;
  this.z=[];this.b=[];this.scrap=[];this.spawnTimer=0;this.invuln=0;this.age=0;this.state='intro';
  this.cameras.main.setBounds(0,0,3900,2400);
  this.setupTouchControls();
@@ -90,6 +92,8 @@ upgrade(){
  }
 }
 apply(id){
+ // Keep a visual level for each upgrade so every choice changes the car.
+ if(Object.prototype.hasOwnProperty.call(this.visual,id))this.visual[id]++;
  if(id==='turret')this.shotDelay=Math.max(.12,this.shotDelay*.8);
  if(id==='damage')this.damage++;
  if(id==='engine'){this.maxSpeed+=45;this.accel+=55;}
@@ -108,6 +112,7 @@ shoot(){
  for(const z of this.z){const d=(z.x-this.x)**2+(z.y-this.y)**2;if(d<dd){best=z;dd=d;}}
  if(!best)return;
  const a=Math.atan2(best.y-this.y,best.x-this.x);
+ this.turretAim=a;
  for(let i=0;i<this.barrels;i++){const v=a+(i-(this.barrels-1)/2)*.15;this.b.push({x:this.x,y:this.y,vx:Math.cos(v)*750,vy:Math.sin(v)*750,t:.8});}
 }
 kill(index){const z=this.z[index];this.scrap.push({x:z.x,y:z.y});this.z.splice(index,1);this.kills++;}
@@ -171,10 +176,146 @@ draw(){
  for(const p of this.scrap){g.fillStyle(0x9ce86b);g.fillCircle(p.x,p.y,5);}
  for(const z of this.z){g.fillStyle(0x698b62);g.fillCircle(z.x,z.y,11);g.fillStyle(0xddf9ba);g.fillCircle(z.x-3,z.y-2,2);g.fillCircle(z.x+3,z.y-2,2);}
  for(const b of this.b){g.fillStyle(0xffd27e);g.fillCircle(b.x,b.y,4);}
- const c=Math.cos(this.a),s=Math.sin(this.a),v=[[-24,-14],[24,-14],[24,14],[-24,14]].map(([px,py])=>({x:this.x+px*c-py*s,y:this.y+px*s+py*c}));
- g.fillStyle(this.invuln>0?0xf27c60:0xd9ac60);g.fillPoints(v,true);g.lineStyle(3,0x101d20);g.strokePoints(v,true);
- g.fillStyle(0x2c4142);g.fillCircle(this.x,this.y,9);
- g.lineStyle(4,0xf5d68a);g.lineBetween(this.x,this.y,this.x+c*32,this.y+s*32);
+ this.drawCar(g);
+}
+
+drawCar(g){
+ // Car components are built from simple rotated shapes. Every upgrade adds
+ // something to the existing car, rather than replacing its appearance.
+ const v=this.visual,ca=Math.cos(this.a),sa=Math.sin(this.a);
+ const pt=(x,y)=>({x:this.x+x*ca-y*sa,y:this.y+x*sa+y*ca});
+ const poly=(vertices,color,outline=null,weight=1,alpha=1)=>{
+  const p=vertices.map(([x,y])=>pt(x,y));
+  g.fillStyle(color,alpha);g.fillPoints(p,true);
+  if(outline!==null){g.lineStyle(weight,outline,1);g.strokePoints(p,true);}
+ };
+ const box=(x,y,w,h,color,outline=null,weight=1,alpha=1)=>
+  poly([[x-w/2,y-h/2],[x+w/2,y-h/2],[x+w/2,y+h/2],[x-w/2,y+h/2]],color,outline,weight,alpha);
+ const dot=(x,y,r,color,alpha=1)=>{const p=pt(x,y);g.fillStyle(color,alpha);g.fillCircle(p.x,p.y,r);};
+ const line=(x1,y1,x2,y2,color,width=2,alpha=1)=>{
+  const a=pt(x1,y1),b=pt(x2,y2);g.lineStyle(width,color,alpha);g.lineBetween(a.x,a.y,b.x,b.y);
+ };
+ const lvl=(id)=>Math.min(v[id],5);
+
+ // Dark chassis, four wheels and permanent front/rear bumpers.
+ box(2,3,56,34,0x090f11,null,1,.35); // short ground shadow
+ for(const x of [-16,17])for(const y of [-18,18]){
+  box(x,y,15,9,0x121819,0x344444,1);
+  line(x-5,y,x+5,y,0x526062,1);
+ }
+ if(v.engine){
+  const turbo=lvl('engine');
+  for(const y of [-11,11]){
+   box(-32,y,15,5,0x768a91,0x27383d,1);
+   const flame=Math.abs(this.speed)>45?6+turbo*3+Math.sin(this.age*35+y)*2:3;
+   poly([[-37,y-3],[-37-flame,y],[-37,y+3]],turbo>2?0x65d7fb:0xf19a43);
+   dot(-34,y,2,0xf9df8c);
+  }
+ }
+ box(0,0,52,29,this.invuln>0?0xf07862:0xd9ac60,0x121c1e,2);
+ // Hood, canopy, windscreen, headlights and tail lights.
+ box(17,0,13,24,0xb78647);
+ box(-6,0,27,20,0x4a6160,0x253336,1.5);
+ box(7,0,5,19,0x9bc5b8);
+ box(-19,0,4,21,0x2b3b40);
+ line(-15,-10,-15,10,0xd7bb75,1.5);
+ for(const y of [-10,10]){box(26,y,4,6,0xf8df9f);box(-26,y,4,6,0xe66b54);}
+ // Paint striping makes the original car recognizable even after upgrades.
+ line(-20,-6,21,-6,0xf2ce84,1.4,.65);
+
+ // Armour adds broad steel plates, stronger roof plating and visible bolts.
+ if(v.armor){
+  const n=lvl('armor');
+  for(const y of [-15,15]){
+   box(0,y,33,5+n*.8,0x7e939b,0x2a3c41,1.3);
+   for(const x of [-13,0,13])dot(x,y,1.4,0xd1dadd);
+  }
+  box(23,0,6+n,23,0x8ba0a6,0x23333a,1.5);
+  for(const y of [-8,8])dot(23,y,1.5,0xe5e3ca);
+  if(n>=2)for(const x of [-12,12]){box(x,0,5+n,16,0x677f87,0x26393c,1);}
+  if(n>=3)for(const y of [-9,9])box(-18,y,13,5,0x9ca9a8,0x31454b,1);
+ }
+
+ // Engine upgrade: visible hood scoops, side vents and rear exhaust stacks.
+ if(v.engine){
+  const n=lvl('engine');
+  box(17,0,10,12,0x334951,0x12242b,1.5);
+  for(let k=0;k<Math.min(n+1,4);k++){
+   const y=(k-(Math.min(n+1,4)-1)/2)*3.3;
+   line(13,y,21,y,0x99c5d2,1.7);
+  }
+  if(n>=2)for(const y of [-12,12])box(-20,y,12,4,0xa0bcc1,0x23343a,1);
+ }
+
+ // Magnetic pickup upgrade adds electric coil units outside both doors.
+ if(v.magnet){
+  const n=lvl('magnet');
+  for(const y of [-21,21]){
+   box(-4,y,16,7,0x173d48,0x60e4e6,1.5);
+   for(const x of [-10,-5,0,5])line(x,y-3,x+1,y+3,0x93f2ee,1.2);
+   dot(8,y,2.4,0x8cfaff);
+   if(n>=2)dot(-12,y,2,0x8cfaff);
+  }
+  // Subtle pulsing field shows the magnet is powered.
+  if(this.state==='play'){
+   g.lineStyle(1.4,0x5de2da,.15+.12*(1+Math.sin(this.age*6))/2);
+   g.strokeCircle(this.x,this.y,this.pickup);
+  }
+ }
+
+ // Spiked bumper is deliberately forward of the headlights so it reads at speed.
+ if(v.bumper){
+  const n=lvl('bumper');
+  box(28,0,8,31,0x6a7f83,0x24353d,1.5);
+  const count=Math.min(3+n,7);
+  for(let i=0;i<count;i++){
+   const y=(i-(count-1)/2)*Math.min(7,27/(count-1));
+   poly([[31,y-2.6],[37+Math.min(n,4)*2,y],[31,y+2.6]],0xd5d9c8,0x3c4b4f,.8);
+  }
+  if(n>=3)for(const y of [-15,15]){
+   poly([[5,y],[11,y+Math.sign(y)*10],[19,y]],0xc4d1d0,0x354e56,1);
+  }
+ }
+
+ // Heavy ammunition is carried externally on the rear deck.
+ if(v.damage){
+  const n=lvl('damage');
+  for(const y of [-9,9]){
+   box(-10,y,13,6,0x684b28,0x221e18,1);
+   for(let j=0;j<Math.min(n+1,4);j++){
+    box(-14+j*3,y,2.1,4,0xffd371);
+   }
+  }
+  if(n>=3)box(-20,0,7,12,0xe1ac50,0x49382a,1);
+ }
+
+ // Upgraded fire control adds an optic and exposed equipment to the turret.
+ if(v.turret){
+  const n=lvl('turret');
+  box(-2,-9,9,5,0x3d6c72,0x0e262c,1);
+  dot(-2,-9,2,0x55f3ef);
+  if(n>=2){
+   box(-2,9,9,5,0x3d6c72,0x0e262c,1);
+   dot(-2,9,2,0x55f3ef);
+  }
+  if(n>=3)for(const x of [-8,8])dot(x,0,2,0x7ee8ed);
+ }
+
+ // Roof turret tracks enemies independently of the car's heading.
+ dot(0,0,11,0x172a2c);
+ dot(0,0,8,v.turret?0x607c88:0x3c5359);
+ const aim=this.turretAim,ux=Math.cos(aim),uy=Math.sin(aim),px=-uy,py=ux;
+ const barrels=Math.max(1,this.barrels);
+ for(let i=0;i<barrels;i++){
+  const o=(i-(barrels-1)/2)*5;
+  const start=3,end=22+(v.damage?Math.min(v.damage,3)*3:0);
+  const x1=this.x+ux*start+px*o,y1=this.y+uy*start+py*o;
+  const x2=this.x+ux*end+px*o,y2=this.y+uy*end+py*o;
+  g.lineStyle(v.damage?5:3.4,0x1a292d);g.lineBetween(x1,y1,x2,y2);
+  g.lineStyle(v.damage?2.7:1.8,v.damage?0xe8bb60:0xa4c4bd);g.lineBetween(x1,y1,x2,y2);
+  g.fillStyle(0xffd694);g.fillCircle(x2,y2,v.damage?2.5:1.8);
+ }
+ dot(0,0,4,0xb3c6b8);
 }
 hud(){
  const p=points[Math.min(this.leg,2)];
