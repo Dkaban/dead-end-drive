@@ -18,6 +18,10 @@ Your mission is simple: **reach the next destination alive.**
 
 ## Controls
 
+**On mobile:** Touch and drag anywhere on the game area to steer and accelerate. Release to coast to a stop. Landscape orientation is recommended.
+
+**On desktop:**
+
 | Key | Action |
 | --- | --- |
 | **W** / **↑** | Accelerate |
@@ -29,4 +33,4 @@ Weapons fire automatically. Follow the on-screen destination marker and collect 
 
 ---
 
-*Dead End Drive is an early browser-game prototype. Best played on desktop with a keyboard.*
+*Dead End Drive is an early browser-game prototype for desktop and mobile browsers.*
