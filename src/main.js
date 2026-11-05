@@ -19,10 +19,60 @@ create(){
  this.maxSpeed=300;this.accel=450;this.shotTimer=0;this.shotDelay=.5;this.damage=2;this.barrels=1;this.pickup=65;this.ram=2;
  this.z=[];this.b=[];this.scrap=[];this.spawnTimer=0;this.invuln=0;this.age=0;this.state='intro';
  this.cameras.main.setBounds(0,0,3900,2400);
+ this.setupTouchControls();
  this.overlay('DEAD END DRIVE','THE HIGHWAY IS LOST','Drive your car through the zombie horde. Your turret fires automatically. Collect green scrap to upgrade and reach three yellow destinations.','START ENGINE',()=>{this.state='play';this.hide();});
 }
 el(id){return document.getElementById(id);}
+setupTouchControls(){
+ // A floating joystick: begin anywhere on the playfield and drag to drive.
+ // Pointer capture keeps steering alive even if the finger leaves the canvas.
+ this.touch=null;
+ const canvas=this.game.canvas;
+ const stick=this.el('touch-stick');
+ const begin=(event)=>{
+  if(this.state!=='play'||this.touch||(event.pointerType!=='touch'&&event.pointerType!=='pen'))return;
+  event.preventDefault();
+  this.touch={id:event.pointerId,originX:event.clientX,originY:event.clientY,dx:0,dy:0};
+  stick.style.left=event.clientX+'px';
+  stick.style.top=event.clientY+'px';
+  stick.style.setProperty('--stick-x','0px');
+  stick.style.setProperty('--stick-y','0px');
+  stick.classList.add('active');
+  if(canvas.setPointerCapture)canvas.setPointerCapture(event.pointerId);
+ };
+ const move=(event)=>{
+  if(!this.touch||this.touch.id!==event.pointerId)return;
+  event.preventDefault();
+  this.touch.dx=event.clientX-this.touch.originX;
+  this.touch.dy=event.clientY-this.touch.originY;
+  const length=Math.hypot(this.touch.dx,this.touch.dy);
+  const scale=length>55?55/length:1;
+  stick.style.setProperty('--stick-x',this.touch.dx*scale+'px');
+  stick.style.setProperty('--stick-y',this.touch.dy*scale+'px');
+ };
+ const end=(event)=>{
+  if(this.touch&&this.touch.id===event.pointerId)this.clearTouch();
+ };
+ canvas.addEventListener('pointerdown',begin);
+ canvas.addEventListener('pointermove',move);
+ canvas.addEventListener('pointerup',end);
+ canvas.addEventListener('pointercancel',end);
+ canvas.addEventListener('lostpointercapture',end);
+ this.events.once('shutdown',()=>{
+  canvas.removeEventListener('pointerdown',begin);
+  canvas.removeEventListener('pointermove',move);
+  canvas.removeEventListener('pointerup',end);
+  canvas.removeEventListener('pointercancel',end);
+  canvas.removeEventListener('lostpointercapture',end);
+  this.clearTouch();
+ });
+}
+clearTouch(){
+ this.touch=null;
+ this.el('touch-stick').classList.remove('active');
+}
 overlay(title,kicker,copy,label,callback){
+ this.clearTouch();
  this.el('overlay').classList.add('visible');this.el('overlay-title').textContent=title;this.el('overlay-kicker').textContent=kicker;
  this.el('overlay-copy').textContent=copy;this.el('upgrade-options').replaceChildren();
  const btn=this.el('overlay-button');btn.hidden=false;btn.textContent=label;btn.onclick=callback;
@@ -65,12 +115,25 @@ update(_,ms){
  const dt=Math.min(ms/1000,.05);
  if(this.state==='play'){
   this.age+=dt;this.spawnTimer+=dt;this.shotTimer+=dt;this.invuln=Math.max(0,this.invuln-dt);
-  const f=this.keys.W.isDown||this.keys.UP.isDown,r=this.keys.S.isDown||this.keys.DOWN.isDown;
-  if(f)this.speed=Math.min(this.maxSpeed,this.speed+this.accel*dt);
-  else if(r)this.speed=Math.max(-this.maxSpeed*.55,this.speed-this.accel*dt);
-  else this.speed*=Math.pow(.09,dt);
-  const turn=(this.keys.D.isDown||this.keys.RIGHT.isDown?1:0)-(this.keys.A.isDown||this.keys.LEFT.isDown?1:0);
-  if(Math.abs(this.speed)>10)this.a+=turn*2.7*dt*Math.sign(this.speed);
+  const finger=this.touch;
+  const drag=finger?Math.hypot(finger.dx,finger.dy):0;
+  if(drag>12){
+   // Finger displacement controls heading and automatic acceleration.
+   const desired=Math.atan2(finger.dy,finger.dx);
+   const delta=Math.atan2(Math.sin(desired-this.a),Math.cos(desired-this.a));
+   const turnLimit=4.8*dt;
+   this.a+=Phaser.Math.Clamp(delta,-turnLimit,turnLimit);
+   const throttle=Phaser.Math.Clamp((drag-12)/68,.25,1);
+   this.speed=Math.max(0,Math.min(this.maxSpeed,this.speed+this.accel*throttle*dt));
+  }else{
+   // Keyboard driving stays unchanged, including reversing.
+   const f=this.keys.W.isDown||this.keys.UP.isDown,r=this.keys.S.isDown||this.keys.DOWN.isDown;
+   if(f)this.speed=Math.min(this.maxSpeed,this.speed+this.accel*dt);
+   else if(r)this.speed=Math.max(-this.maxSpeed*.55,this.speed-this.accel*dt);
+   else this.speed*=Math.pow(.09,dt);
+   const turn=(this.keys.D.isDown||this.keys.RIGHT.isDown?1:0)-(this.keys.A.isDown||this.keys.LEFT.isDown?1:0);
+   if(Math.abs(this.speed)>10)this.a+=turn*2.7*dt*Math.sign(this.speed);
+  }
   this.x=Phaser.Math.Clamp(this.x+Math.cos(this.a)*this.speed*dt,25,3875);
   this.y=Phaser.Math.Clamp(this.y+Math.sin(this.a)*this.speed*dt,25,2375);
   if(this.spawnTimer>.48-Math.min(.24,this.age/250)){this.spawnTimer=0;this.spawn();}
