@@ -8,7 +8,22 @@ if (!Phaser) {
   document.getElementById('overlay-button').hidden = true;
   throw new Error('Phaser did not load from the CDN');
 }
-const points=[{x:1150,y:350,name:'GAS STATION'},{x:2450,y:1050,name:'REPAIR YARD'},{x:3540,y:1810,name:'EVACUATION POINT'}];
+// A longer journey, with a proper Haven after every three ordinary checkpoints.
+const WORLD={width:7800,height:3800};
+const points=[
+ {x:760,y:450,name:'ABANDONED MOTEL',type:'checkpoint'},
+ {x:1320,y:790,name:'HIGHWAY JUNCTION',type:'checkpoint'},
+ {x:1870,y:650,name:'FUEL DEPOT',type:'checkpoint'},
+ {x:2420,y:1100,name:'ASHFALL HAVEN',type:'haven'},
+ {x:3040,y:850,name:'BARRICADE',type:'checkpoint'},
+ {x:3660,y:1420,name:'FALLEN OVERPASS',type:'checkpoint'},
+ {x:4220,y:1250,name:'RAIL YARD',type:'checkpoint'},
+ {x:4800,y:1860,name:'NORTH SHELTER HAVEN',type:'haven'},
+ {x:5420,y:2100,name:'TUNNEL MOUTH',type:'checkpoint'},
+ {x:6030,y:2540,name:'BROKEN BRIDGE',type:'checkpoint'},
+ {x:6680,y:2930,name:'FINAL ROADBLOCK',type:'checkpoint'},
+ {x:7380,y:3310,name:'EVACUATION POINT',type:'evac'}
+];
 const upgrades=[['turret','TRIGGER HAPPY','Fire 20% faster'],['damage','HEAVY ROUNDS','Increase bullet damage'],['engine','TURBO CHARGER','Faster driving'],['armor','WELDED ARMOR','More health and repairs'],['magnet','SCRAP MAGNET','Collect scrap from farther away'],['barrel','EXTRA BARREL','Fire additional bullets'],['bumper','SPIKED BUMPER','Do more ramming damage']];
 const rand=(a,b)=>a+Math.random()*(b-a);
 class Drive extends Phaser.Scene{
@@ -16,13 +31,13 @@ constructor(){super('Drive');}
 create(){
  this.g=this.add.graphics();this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT');
  this.x=190;this.y=190;this.a=0;this.speed=0;this.hp=100;this.maxHp=100;this.xp=0;this.xpGoal=8;this.level=1;this.kills=0;this.leg=0;
- this.maxSpeed=300;this.accel=450;this.shotTimer=0;this.shotDelay=.5;this.damage=2;this.barrels=1;this.pickup=65;this.ram=2;
+ this.maxSpeed=300;this.accel=450;this.shotTimer=0;this.shotDelay=.5;this.damage=2;this.barrels=1;this.pickup=65;this.ram=2;this.scrapYield=1;
  this.visual={turret:0,damage:0,engine:0,armor:0,magnet:0,barrel:0,bumper:0};
  this.turretAim=0;
  this.z=[];this.b=[];this.scrap=[];this.spawnTimer=0;this.invuln=0;this.age=0;this.state='intro';
- this.cameras.main.setBounds(0,0,3900,2400);
+ this.cameras.main.setBounds(0,0,WORLD.width,WORLD.height);
  this.setupTouchControls();
- this.overlay('DEAD END DRIVE','THE HIGHWAY IS LOST','Drive your car through the zombie horde. Your turret fires automatically. Collect green scrap to upgrade and reach three yellow destinations.','START ENGINE',()=>{this.state='play';this.hide();});
+ this.overlay('DEAD END DRIVE','THE HIGHWAY IS LOST','Drive through twelve destinations to reach evacuation. Collect green salvage for upgrades, and visit Havens for major investments in your vehicle.','START ENGINE',()=>{this.state='play';this.hide();});
 }
 el(id){return document.getElementById(id);}
 setupTouchControls(){
@@ -91,6 +106,38 @@ upgrade(){
   this.el('upgrade-options').append(btn);
  }
 }
+// Havens provide one major investment each. These are permanent for this run,
+// separate from the random upgrades earned by collecting salvage.
+haven(stop){
+ this.state='haven';
+ this.overlay(stop.name,'SAFE ZONE · MAJOR INVESTMENT','Your car is repaired. Choose one permanent upgrade for the rest of this run.','','');
+ this.el('overlay-button').hidden=true;
+ const options=[
+  ['health','REINFORCED HULL','+40 maximum health, repair 60, and add armour plates'],
+  ['damage','WEAPON WORKSHOP','+2 bullet damage and visible ammunition hardware'],
+  ['salvage','SALVAGE REFINERY','+50% salvage value, bigger collection radius, and magnetic coils']
+ ];
+ for(const [id,name,description] of options){
+  const btn=document.createElement('button');
+  btn.className='upgrade';
+  btn.textContent=name+' — '+description;
+  btn.onclick=()=>{this.invest(id);this.hide();this.state='play';};
+  this.el('upgrade-options').append(btn);
+ }
+}
+invest(id){
+ if(id==='health'){
+  this.maxHp+=40;this.hp=Math.min(this.maxHp,this.hp+60);
+  this.visual.armor++;
+ }
+ if(id==='damage'){
+  this.damage+=2;this.visual.damage++;
+ }
+ if(id==='salvage'){
+  this.scrapYield+=.5;this.pickup+=25;
+  this.visual.magnet++;
+ }
+}
 apply(id){
  // Keep a visual level for each upgrade so every choice changes the car.
  if(Object.prototype.hasOwnProperty.call(this.visual,id))this.visual[id]++;
@@ -105,7 +152,7 @@ apply(id){
 spawn(){
  if(this.z.length>140)return;
  const a=rand(0,Math.PI*2),r=rand(480,680);
- this.z.push({x:Phaser.Math.Clamp(this.x+Math.cos(a)*r,12,3888),y:Phaser.Math.Clamp(this.y+Math.sin(a)*r,12,2388),hp:3+this.leg*2,s:rand(55,85)+this.leg*15});
+ this.z.push({x:Phaser.Math.Clamp(this.x+Math.cos(a)*r,12,WORLD.width-12),y:Phaser.Math.Clamp(this.y+Math.sin(a)*r,12,WORLD.height-12),hp:3+Math.min(8,Math.floor(this.leg/3)*2),s:rand(55,85)+Math.min(35,this.leg*3)});
 }
 shoot(){
  let best=null,dd=450**2;
@@ -139,8 +186,8 @@ update(_,ms){
    const turn=(this.keys.D.isDown||this.keys.RIGHT.isDown?1:0)-(this.keys.A.isDown||this.keys.LEFT.isDown?1:0);
    if(Math.abs(this.speed)>10)this.a+=turn*2.7*dt*Math.sign(this.speed);
   }
-  this.x=Phaser.Math.Clamp(this.x+Math.cos(this.a)*this.speed*dt,25,3875);
-  this.y=Phaser.Math.Clamp(this.y+Math.sin(this.a)*this.speed*dt,25,2375);
+  this.x=Phaser.Math.Clamp(this.x+Math.cos(this.a)*this.speed*dt,25,WORLD.width-25);
+  this.y=Phaser.Math.Clamp(this.y+Math.sin(this.a)*this.speed*dt,25,WORLD.height-25);
   if(this.spawnTimer>.48-Math.min(.24,this.age/250)){this.spawnTimer=0;this.spawn();}
   if(this.shotTimer>this.shotDelay){this.shotTimer=0;this.shoot();}
   for(let i=this.z.length-1;i>=0;i--){
@@ -156,23 +203,51 @@ update(_,ms){
    for(let j=this.z.length-1;j>=0;j--){const z=this.z[j];if((b.x-z.x)**2+(b.y-z.y)**2<200){z.hp-=this.damage;if(z.hp<=0)this.kill(j);hit=true;break;}}
    if(hit||b.t<=0)this.b.splice(i,1);
   }
-  for(let i=this.scrap.length-1;i>=0;i--){const p=this.scrap[i];if(Math.hypot(p.x-this.x,p.y-this.y)<this.pickup){this.scrap.splice(i,1);this.xp++;if(this.xp>=this.xpGoal){this.xp=0;this.level++;this.xpGoal=Math.ceil(this.xpGoal*1.3);this.upgrade();break;}}}
+  for(let i=this.scrap.length-1;i>=0;i--){const p=this.scrap[i];if(Math.hypot(p.x-this.x,p.y-this.y)<this.pickup){this.scrap.splice(i,1);this.xp+=this.scrapYield;if(this.xp>=this.xpGoal){this.xp-=this.xpGoal;this.level++;this.xpGoal=Math.ceil(this.xpGoal*1.3);this.upgrade();break;}}}
   if(this.state==='play'&&Math.hypot(this.x-points[this.leg].x,this.y-points[this.leg].y)<80){
-   this.leg++;this.hp=Math.min(this.maxHp,this.hp+35);
-   if(this.leg===3){this.state='won';this.overlay('YOU SURVIVED','EVACUATION COMPLETE','You reached all three destinations and eliminated '+this.kills+' zombies.','PLAY AGAIN',()=>this.scene.restart());}
-   else {this.level++;this.upgrade();}
+   const stop=points[this.leg];
+   this.leg++;
+   if(stop.type==='evac'){
+    this.state='won';
+    this.overlay('YOU SURVIVED','EVACUATION COMPLETE','You reached all '+points.length+' destinations and eliminated '+this.kills+' zombies.','PLAY AGAIN',()=>this.scene.restart());
+   }else if(stop.type==='haven'){
+    this.hp=Math.min(this.maxHp,this.hp+40);
+    this.haven(stop);
+   }else{
+    // Checkpoints provide modest repair and a salvage bonus without an
+    // interrupting upgrade screen; Haven investments are more significant.
+    this.hp=Math.min(this.maxHp,this.hp+12);
+    this.xp+=2*this.scrapYield;
+    if(this.xp>=this.xpGoal){
+     this.xp-=this.xpGoal;this.level++;this.xpGoal=Math.ceil(this.xpGoal*1.3);
+     this.upgrade();
+    }
+   }
   }
  }
- this.cameras.main.scrollX=Phaser.Math.Clamp(this.x-this.cameras.main.width/2,0,Math.max(0,3900-this.cameras.main.width));
- this.cameras.main.scrollY=Phaser.Math.Clamp(this.y-this.cameras.main.height/2,0,Math.max(0,2400-this.cameras.main.height));
+ this.cameras.main.scrollX=Phaser.Math.Clamp(this.x-this.cameras.main.width/2,0,Math.max(0,WORLD.width-this.cameras.main.width));
+ this.cameras.main.scrollY=Phaser.Math.Clamp(this.y-this.cameras.main.height/2,0,Math.max(0,WORLD.height-this.cameras.main.height));
  this.draw();this.hud();
 }
 draw(){
- const g=this.g;g.clear();g.fillStyle(0x1c2927);g.fillRect(0,0,3900,2400);
- g.lineStyle(1,0x32433d,.65);for(let x=0;x<3900;x+=140)g.lineBetween(x,0,x,2400);for(let y=0;y<2400;y+=140)g.lineBetween(0,y,3900,y);
+ const g=this.g;g.clear();g.fillStyle(0x1c2927);g.fillRect(0,0,WORLD.width,WORLD.height);
+ g.lineStyle(1,0x32433d,.65);for(let x=0;x<WORLD.width;x+=140)g.lineBetween(x,0,x,WORLD.height);for(let y=0;y<WORLD.height;y+=140)g.lineBetween(0,y,WORLD.width,y);
  g.lineStyle(170,0x303b3c,.9);g.beginPath();g.moveTo(190,190);for(const p of points)g.lineTo(p.x,p.y);g.strokePath();
  g.lineStyle(3,0xd2bf88,.65);g.beginPath();g.moveTo(190,190);for(const p of points)g.lineTo(p.x,p.y);g.strokePath();
- for(let i=this.leg;i<points.length;i++){const p=points[i];g.lineStyle(3,i===this.leg?0xeabd64:0x778574);g.strokeCircle(p.x,p.y,60);g.strokeCircle(p.x,p.y,42);}
+ for(let i=this.leg;i<points.length;i++){
+  const p=points[i],isHaven=p.type==='haven',isGoal=i===this.leg;
+  const color=isHaven?0x63d6cc:(p.type==='evac'?0xf9bd67:0xd5c37c);
+  g.lineStyle(isGoal?4:2,color,isGoal?1:.45);
+  g.strokeCircle(p.x,p.y,isHaven?74:58);g.strokeCircle(p.x,p.y,isHaven?52:40);
+  if(isHaven){
+   g.fillStyle(0x13434b,.72);g.fillRoundedRect(p.x-30,p.y-23,60,46,8);
+   g.lineStyle(2,0x70f1d8,.85);g.strokeRoundedRect(p.x-30,p.y-23,60,46,8);
+   g.lineBetween(p.x-15,p.y,p.x+15,p.y);
+   g.lineBetween(p.x,p.y-15,p.x,p.y+15);
+  }else if(p.type==='evac'){
+   g.fillStyle(0xeec76e,.72);g.fillCircle(p.x,p.y,12);
+  }
+ }
  for(const p of this.scrap){g.fillStyle(0x9ce86b);g.fillCircle(p.x,p.y,5);}
  for(const z of this.z){g.fillStyle(0x698b62);g.fillCircle(z.x,z.y,11);g.fillStyle(0xddf9ba);g.fillCircle(z.x-3,z.y-2,2);g.fillCircle(z.x+3,z.y-2,2);}
  for(const b of this.b){g.fillStyle(0xffd27e);g.fillCircle(b.x,b.y,4);}
@@ -322,10 +397,11 @@ hud(){
  this.el('hp-fill').style.width=Math.max(0,this.hp)*100/this.maxHp+'%';
  this.el('hp-label').textContent=Math.max(0,Math.ceil(this.hp))+' / '+this.maxHp;
  this.el('xp-fill').style.width=100*this.xp/this.xpGoal+'%';
- this.el('xp-label').textContent=this.xp+' / '+this.xpGoal;
+ this.el('xp-label').textContent=(Math.round(this.xp*10)/10)+' / '+this.xpGoal;
  this.el('level-label').textContent='LVL '+this.level;
  this.el('kill-label').textContent=this.kills+' ELIMINATED';
- this.el('stage-label').textContent='LEG '+Math.min(3,this.leg+1)+' / 3';
+ this.el('stage-label').textContent='STOP '+Math.min(points.length,this.leg+1)+' / '+points.length;
+ this.el('next-stop-name').textContent=p.name+(p.type==='haven'?' · HAVEN':'');
  this.el('distance-label').textContent=Math.round(Math.hypot(this.x-p.x,this.y-p.y)/10)+' m';
  this.el('heading-label').style.transform='rotate('+(90+Math.atan2(p.y-this.y,p.x-this.x)*180/Math.PI)+'deg)';
  this.el('weapon-label').textContent='AUTO TURRET · '+this.barrels+' BARREL'+(this.barrels===1?'':'S');
