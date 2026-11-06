@@ -14,8 +14,8 @@ Your mission is simple: **make it through twelve destinations and reach evacuati
 - **Fight back.** Your mounted turret automatically targets nearby zombies. Your car can be a weapon, too.
 - **Collect salvage.** Pick up scrap from defeated enemies and choose new upgrades.
 - **Build your ride.** Improve your firepower, armour, speed, and ramming damage.
-- **Find the Havens.** Reach two rare safe zones to invest in stronger armour, firepower, or increased salvage collection.
-- **Make it out.** Follow the checkpoints, repair your car, and push on to the evacuation point.
+- **Reach the checkpoints.** Cross longer stretches of road, earning small repairs and bonus salvage as you go.
+- **Make it out.** Survive all twelve destinations and reach the evacuation point.
 
 ## Controls
 
