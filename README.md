@@ -8,13 +8,14 @@ A top-down zombie survival driving game. Keep moving, outrun the horde, and turn
 
 ## The game
 
-Your mission is simple: **reach the next destination alive.**
+Your mission is simple: **make it through twelve destinations and reach evacuation alive.**
 
 - **Drive to survive.** Zombies pour in from every direction, and stopping is dangerous.
 - **Fight back.** Your mounted turret automatically targets nearby zombies. Your car can be a weapon, too.
 - **Collect salvage.** Pick up scrap from defeated enemies and choose new upgrades.
 - **Build your ride.** Improve your firepower, armour, speed, and ramming damage.
-- **Make it out.** Reach safehouses for repairs and push on to the evacuation point.
+- **Find the Havens.** Reach two rare safe zones to invest in stronger armour, firepower, or increased salvage collection.
+- **Make it out.** Follow the checkpoints, repair your car, and push on to the evacuation point.
 
 ## Controls
 
