@@ -1,5 +1,15 @@
 // Use Phaser's browser build so GitHub Pages can serve the source directly.
 const Phaser = window.Phaser;
+// Surface errors to players instead of leaving a blank screen.
+window.addEventListener('error',event=>{
+ const overlay=document.getElementById('overlay');
+ if(!overlay)return;
+ overlay.classList.add('visible');
+ document.getElementById('overlay-kicker').textContent='GAME ERROR';
+ document.getElementById('overlay-title').textContent='THE GAME STOPPED';
+ document.getElementById('overlay-copy').textContent='Please refresh. Error: '+(event.message||'Unknown error');
+ document.getElementById('overlay-button').hidden=true;
+});
 if (!Phaser) {
   document.getElementById('overlay').classList.add('visible');
   document.getElementById('overlay-title').textContent = 'UNABLE TO LOAD GAME';
@@ -8,21 +18,21 @@ if (!Phaser) {
   document.getElementById('overlay-button').hidden = true;
   throw new Error('Phaser did not load from the CDN');
 }
-// A longer journey, with a proper Haven after every three ordinary checkpoints.
-const WORLD={width:7800,height:3800};
+// Twelve spaced-out destinations. All intermediate stops are ordinary checkpoints.
+const WORLD={"width":14100,"height":4100};
 const points=[
- {x:760,y:450,name:'ABANDONED MOTEL',type:'checkpoint'},
- {x:1320,y:790,name:'HIGHWAY JUNCTION',type:'checkpoint'},
- {x:1870,y:650,name:'FUEL DEPOT',type:'checkpoint'},
- {x:2420,y:1100,name:'ASHFALL HAVEN',type:'haven'},
- {x:3040,y:850,name:'BARRICADE',type:'checkpoint'},
- {x:3660,y:1420,name:'FALLEN OVERPASS',type:'checkpoint'},
- {x:4220,y:1250,name:'RAIL YARD',type:'checkpoint'},
- {x:4800,y:1860,name:'NORTH SHELTER HAVEN',type:'haven'},
- {x:5420,y:2100,name:'TUNNEL MOUTH',type:'checkpoint'},
- {x:6030,y:2540,name:'BROKEN BRIDGE',type:'checkpoint'},
- {x:6680,y:2930,name:'FINAL ROADBLOCK',type:'checkpoint'},
- {x:7380,y:3310,name:'EVACUATION POINT',type:'evac'}
+ {x:1220,y:580,name:'ABANDONED MOTEL',type:'checkpoint'},
+ {x:2290,y:990,name:'HIGHWAY JUNCTION',type:'checkpoint'},
+ {x:3400,y:550,name:'FUEL DEPOT',type:'checkpoint'},
+ {x:4490,y:1330,name:'REST STOP',type:'checkpoint'},
+ {x:5500,y:790,name:'BARRICADE',type:'checkpoint'},
+ {x:6650,y:1470,name:'FALLEN OVERPASS',type:'checkpoint'},
+ {x:7730,y:980,name:'RAIL YARD',type:'checkpoint'},
+ {x:8840,y:1780,name:'NORTH SHELTER',type:'checkpoint'},
+ {x:9990,y:2270,name:'TUNNEL MOUTH',type:'checkpoint'},
+ {x:11070,y:1730,name:'BROKEN BRIDGE',type:'checkpoint'},
+ {x:12170,y:2750,name:'FINAL ROADBLOCK',type:'checkpoint'},
+ {x:13480,y:3360,name:'EVACUATION POINT',type:'evac'}
 ];
 const upgrades=[['turret','TRIGGER HAPPY','Fire 20% faster'],['damage','HEAVY ROUNDS','Increase bullet damage'],['engine','TURBO CHARGER','Faster driving'],['armor','WELDED ARMOR','More health and repairs'],['magnet','SCRAP MAGNET','Collect scrap from farther away'],['barrel','EXTRA BARREL','Fire additional bullets'],['bumper','SPIKED BUMPER','Do more ramming damage']];
 const rand=(a,b)=>a+Math.random()*(b-a);
@@ -31,13 +41,13 @@ constructor(){super('Drive');}
 create(){
  this.g=this.add.graphics();this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT');
  this.x=190;this.y=190;this.a=0;this.speed=0;this.hp=100;this.maxHp=100;this.xp=0;this.xpGoal=8;this.level=1;this.kills=0;this.leg=0;
- this.maxSpeed=300;this.accel=450;this.shotTimer=0;this.shotDelay=.5;this.damage=2;this.barrels=1;this.pickup=65;this.ram=2;this.scrapYield=1;
+ this.maxSpeed=300;this.accel=450;this.shotTimer=0;this.shotDelay=.5;this.damage=2;this.barrels=1;this.pickup=65;this.ram=2;
  this.visual={turret:0,damage:0,engine:0,armor:0,magnet:0,barrel:0,bumper:0};
  this.turretAim=0;
  this.z=[];this.b=[];this.scrap=[];this.spawnTimer=0;this.invuln=0;this.age=0;this.state='intro';
  this.cameras.main.setBounds(0,0,WORLD.width,WORLD.height);
  this.setupTouchControls();
- this.overlay('DEAD END DRIVE','THE HIGHWAY IS LOST','Drive through twelve destinations to reach evacuation. Collect green salvage for upgrades, and visit Havens for major investments in your vehicle.','START ENGINE',()=>{this.state='play';this.hide();});
+ this.overlay('DEAD END DRIVE','THE HIGHWAY IS LOST','Drive across twelve widely spaced checkpoints to reach evacuation. Repair at each stop, collect salvage, and upgrade your car as the zombie horde grows.','START ENGINE',()=>{this.state='play';this.hide();});
 }
 el(id){return document.getElementById(id);}
 setupTouchControls(){
@@ -106,38 +116,6 @@ upgrade(){
   this.el('upgrade-options').append(btn);
  }
 }
-// Havens provide one major investment each. These are permanent for this run,
-// separate from the random upgrades earned by collecting salvage.
-haven(stop){
- this.state='haven';
- this.overlay(stop.name,'SAFE ZONE · MAJOR INVESTMENT','Your car is repaired. Choose one permanent upgrade for the rest of this run.','','');
- this.el('overlay-button').hidden=true;
- const options=[
-  ['health','REINFORCED HULL','+40 maximum health, repair 60, and add armour plates'],
-  ['damage','WEAPON WORKSHOP','+2 bullet damage and visible ammunition hardware'],
-  ['salvage','SALVAGE REFINERY','+50% salvage value, bigger collection radius, and magnetic coils']
- ];
- for(const [id,name,description] of options){
-  const btn=document.createElement('button');
-  btn.className='upgrade';
-  btn.textContent=name+' — '+description;
-  btn.onclick=()=>{this.invest(id);this.hide();this.state='play';};
-  this.el('upgrade-options').append(btn);
- }
-}
-invest(id){
- if(id==='health'){
-  this.maxHp+=40;this.hp=Math.min(this.maxHp,this.hp+60);
-  this.visual.armor++;
- }
- if(id==='damage'){
-  this.damage+=2;this.visual.damage++;
- }
- if(id==='salvage'){
-  this.scrapYield+=.5;this.pickup+=25;
-  this.visual.magnet++;
- }
-}
 apply(id){
  // Keep a visual level for each upgrade so every choice changes the car.
  if(Object.prototype.hasOwnProperty.call(this.visual,id))this.visual[id]++;
@@ -150,7 +128,7 @@ apply(id){
  if(id==='bumper')this.ram+=3;
 }
 spawn(){
- if(this.z.length>140)return;
+ if(this.z.length>(window.matchMedia('(pointer: coarse)').matches?90:140))return;
  const a=rand(0,Math.PI*2),r=rand(480,680);
  this.z.push({x:Phaser.Math.Clamp(this.x+Math.cos(a)*r,12,WORLD.width-12),y:Phaser.Math.Clamp(this.y+Math.sin(a)*r,12,WORLD.height-12),hp:3+Math.min(8,Math.floor(this.leg/3)*2),s:rand(55,85)+Math.min(35,this.leg*3)});
 }
@@ -203,23 +181,21 @@ update(_,ms){
    for(let j=this.z.length-1;j>=0;j--){const z=this.z[j];if((b.x-z.x)**2+(b.y-z.y)**2<200){z.hp-=this.damage;if(z.hp<=0)this.kill(j);hit=true;break;}}
    if(hit||b.t<=0)this.b.splice(i,1);
   }
-  for(let i=this.scrap.length-1;i>=0;i--){const p=this.scrap[i];if(Math.hypot(p.x-this.x,p.y-this.y)<this.pickup){this.scrap.splice(i,1);this.xp+=this.scrapYield;if(this.xp>=this.xpGoal){this.xp-=this.xpGoal;this.level++;this.xpGoal=Math.ceil(this.xpGoal*1.3);this.upgrade();break;}}}
-  if(this.state==='play'&&Math.hypot(this.x-points[this.leg].x,this.y-points[this.leg].y)<80){
+  for(let i=this.scrap.length-1;i>=0;i--){const p=this.scrap[i];if(Math.hypot(p.x-this.x,p.y-this.y)<this.pickup){this.scrap.splice(i,1);this.xp++;if(this.xp>=this.xpGoal){this.xp-=this.xpGoal;this.level++;this.xpGoal=Math.ceil(this.xpGoal*1.3);this.upgrade();break;}}}
+  if(this.state==='play'&&this.leg<points.length&&Math.hypot(this.x-points[this.leg].x,this.y-points[this.leg].y)<100){
    const stop=points[this.leg];
    this.leg++;
    if(stop.type==='evac'){
     this.state='won';
     this.overlay('YOU SURVIVED','EVACUATION COMPLETE','You reached all '+points.length+' destinations and eliminated '+this.kills+' zombies.','PLAY AGAIN',()=>this.scene.restart());
-   }else if(stop.type==='haven'){
-    this.hp=Math.min(this.maxHp,this.hp+40);
-    this.haven(stop);
    }else{
-    // Checkpoints provide modest repair and a salvage bonus without an
-    // interrupting upgrade screen; Haven investments are more significant.
-    this.hp=Math.min(this.maxHp,this.hp+12);
-    this.xp+=2*this.scrapYield;
+    // Checkpoint reward: a little repair and salvage XP. No Haven menu.
+    this.hp=Math.min(this.maxHp,this.hp+15);
+    this.xp+=3;
     if(this.xp>=this.xpGoal){
-     this.xp-=this.xpGoal;this.level++;this.xpGoal=Math.ceil(this.xpGoal*1.3);
+     this.xp-=this.xpGoal;
+     this.level++;
+     this.xpGoal=Math.ceil(this.xpGoal*1.3);
      this.upgrade();
     }
    }
@@ -230,27 +206,56 @@ update(_,ms){
  this.draw();this.hud();
 }
 draw(){
- const g=this.g;g.clear();g.fillStyle(0x1c2927);g.fillRect(0,0,WORLD.width,WORLD.height);
- g.lineStyle(1,0x32433d,.65);for(let x=0;x<WORLD.width;x+=140)g.lineBetween(x,0,x,WORLD.height);for(let y=0;y<WORLD.height;y+=140)g.lineBetween(0,y,WORLD.width,y);
- g.lineStyle(170,0x303b3c,.9);g.beginPath();g.moveTo(190,190);for(const p of points)g.lineTo(p.x,p.y);g.strokePath();
- g.lineStyle(3,0xd2bf88,.65);g.beginPath();g.moveTo(190,190);for(const p of points)g.lineTo(p.x,p.y);g.strokePath();
- for(let i=this.leg;i<points.length;i++){
-  const p=points[i],isHaven=p.type==='haven',isGoal=i===this.leg;
-  const color=isHaven?0x63d6cc:(p.type==='evac'?0xf9bd67:0xd5c37c);
-  g.lineStyle(isGoal?4:2,color,isGoal?1:.45);
-  g.strokeCircle(p.x,p.y,isHaven?74:58);g.strokeCircle(p.x,p.y,isHaven?52:40);
-  if(isHaven){
-   g.fillStyle(0x13434b,.72);g.fillRoundedRect(p.x-30,p.y-23,60,46,8);
-   g.lineStyle(2,0x70f1d8,.85);g.strokeRoundedRect(p.x-30,p.y-23,60,46,8);
-   g.lineBetween(p.x-15,p.y,p.x+15,p.y);
-   g.lineBetween(p.x,p.y-15,p.x,p.y+15);
-  }else if(p.type==='evac'){
-   g.fillStyle(0xeec76e,.72);g.fillCircle(p.x,p.y,12);
+ const g=this.g;
+ const camera=this.cameras.main;
+ const margin=140;
+ const left=Math.max(0,Math.floor((camera.scrollX-margin)/140)*140);
+ const top=Math.max(0,Math.floor((camera.scrollY-margin)/140)*140);
+ const right=Math.min(WORLD.width,camera.scrollX+camera.width+margin);
+ const bottom=Math.min(WORLD.height,camera.scrollY+camera.height+margin);
+ g.clear();
+ // Only paint the visible world. Drawing the entire enormous map every frame
+ // caused mobile GPU problems and made large maps needlessly expensive.
+ g.fillStyle(0x1c2927);
+ g.fillRect(left,top,right-left,bottom-top);
+ g.lineStyle(1,0x32433d,.65);
+ for(let x=left;x<right;x+=140)g.lineBetween(x,top,x,bottom);
+ for(let y=top;y<bottom;y+=140)g.lineBetween(left,y,right,y);
+ // Road is a handful of long segments; clipped to the visible camera region.
+ let last={x:190,y:190};
+ for(const p of points){
+  if(Math.max(Math.min(last.x,p.x),left-110)<=Math.min(Math.max(last.x,p.x),right+110)
+    && Math.max(Math.min(last.y,p.y),top-110)<=Math.min(Math.max(last.y,p.y),bottom+110)){
+   g.lineStyle(164,0x303b3c,.9);
+   g.lineBetween(last.x,last.y,p.x,p.y);
+   g.lineStyle(3,0xd2bf88,.65);
+   g.lineBetween(last.x,last.y,p.x,p.y);
   }
+  last=p;
  }
- for(const p of this.scrap){g.fillStyle(0x9ce86b);g.fillCircle(p.x,p.y,5);}
- for(const z of this.z){g.fillStyle(0x698b62);g.fillCircle(z.x,z.y,11);g.fillStyle(0xddf9ba);g.fillCircle(z.x-3,z.y-2,2);g.fillCircle(z.x+3,z.y-2,2);}
- for(const b of this.b){g.fillStyle(0xffd27e);g.fillCircle(b.x,b.y,4);}
+ for(let i=this.leg;i<points.length;i++){
+  const p=points[i];
+  if(p.x<left-100||p.x>right+100||p.y<top-100||p.y>bottom+100)continue;
+  const isGoal=i===this.leg,final=p.type==='evac';
+  g.lineStyle(isGoal?4:2,final?0x99e0a5:0xe6c878,isGoal?1:.45);
+  g.strokeCircle(p.x,p.y,final?75:60);
+  g.strokeCircle(p.x,p.y,final?53:41);
+  if(final){g.fillStyle(0xa8e6ad,.9);g.fillCircle(p.x,p.y,13);}
+  else {g.fillStyle(0xe6c878,.85);g.fillCircle(p.x,p.y,6);}
+ }
+ for(const p of this.scrap){
+  if(p.x<left-10||p.x>right+10||p.y<top-10||p.y>bottom+10)continue;
+  g.fillStyle(0x9ce86b);g.fillCircle(p.x,p.y,5);
+ }
+ for(const z of this.z){
+  if(z.x<left-20||z.x>right+20||z.y<top-20||z.y>bottom+20)continue;
+  g.fillStyle(0x698b62);g.fillCircle(z.x,z.y,11);
+  g.fillStyle(0xddf9ba);g.fillCircle(z.x-3,z.y-2,2);g.fillCircle(z.x+3,z.y-2,2);
+ }
+ for(const b of this.b){
+  if(b.x<left-10||b.x>right+10||b.y<top-10||b.y>bottom+10)continue;
+  g.fillStyle(0xffd27e);g.fillCircle(b.x,b.y,4);
+ }
  this.drawCar(g);
 }
 
@@ -393,7 +398,7 @@ drawCar(g){
  dot(0,0,4,0xb3c6b8);
 }
 hud(){
- const p=points[Math.min(this.leg,2)];
+ const p=points[Math.min(this.leg,points.length-1)];
  this.el('hp-fill').style.width=Math.max(0,this.hp)*100/this.maxHp+'%';
  this.el('hp-label').textContent=Math.max(0,Math.ceil(this.hp))+' / '+this.maxHp;
  this.el('xp-fill').style.width=100*this.xp/this.xpGoal+'%';
@@ -401,10 +406,28 @@ hud(){
  this.el('level-label').textContent='LVL '+this.level;
  this.el('kill-label').textContent=this.kills+' ELIMINATED';
  this.el('stage-label').textContent='STOP '+Math.min(points.length,this.leg+1)+' / '+points.length;
- this.el('next-stop-name').textContent=p.name+(p.type==='haven'?' · HAVEN':'');
+ this.el('next-stop-name').textContent=p.name;
  this.el('distance-label').textContent=Math.round(Math.hypot(this.x-p.x,this.y-p.y)/10)+' m';
  this.el('heading-label').style.transform='rotate('+(90+Math.atan2(p.y-this.y,p.x-this.x)*180/Math.PI)+'deg)';
  this.el('weapon-label').textContent='AUTO TURRET · '+this.barrels+' BARREL'+(this.barrels===1?'':'S');
 }
 }
-new Phaser.Game({type:Phaser.AUTO,parent:'game',backgroundColor:'#172425',scale:{mode:Phaser.Scale.RESIZE,width:window.innerWidth,height:window.innerHeight},scene:[Drive]});
+// Use the reliable Canvas renderer on touch devices; Graphics is entirely 2D.
+const isTouchDevice=window.matchMedia('(pointer: coarse)').matches;
+try{
+ new Phaser.Game({
+  type:isTouchDevice?Phaser.CANVAS:Phaser.AUTO,
+  parent:'game',
+  backgroundColor:'#172425',
+  scale:{mode:Phaser.Scale.RESIZE,width:window.innerWidth,height:window.innerHeight},
+  scene:[Drive]
+ });
+}catch(error){
+ const overlay=document.getElementById('overlay');
+ overlay.classList.add('visible');
+ document.getElementById('overlay-kicker').textContent='GAME ERROR';
+ document.getElementById('overlay-title').textContent='DRIVE COULD NOT START';
+ document.getElementById('overlay-copy').textContent='Try refreshing the page. If this continues, please report the error: '+error.message;
+ document.getElementById('overlay-button').hidden=true;
+ throw error;
+}
